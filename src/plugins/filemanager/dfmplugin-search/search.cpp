@@ -6,6 +6,7 @@
 #include "events/searcheventreceiver.h"
 #include "utils/searchhelper.h"
 #include "utils/custommanager.h"
+#include "utils/textindexclient.h"
 #include "fileinfo/searchfileinfo.h"
 #include "iterator/searchdiriterator.h"
 #include "watcher/searchfilewatcher.h"
@@ -13,7 +14,7 @@
 #include "menus/searchmenuscene.h"
 #include "searchmanager/searchmanager.h"
 
-#include "plugins/common/core/dfmplugin-menu/menu_eventinterface_helper.h"
+#include "plugins/common/dfmplugin-menu/menu_eventinterface_helper.h"
 
 #include <dfm-base/dfm_global_defines.h>
 #include <dfm-base/dfm_event_defines.h>
@@ -23,6 +24,7 @@
 #include <dfm-base/settingdialog/settingjsongenerator.h>
 #include <dfm-base/base/configs/settingbackend.h>
 #include <dfm-base/base/configs/dconfig/dconfigmanager.h>
+#include <dfm-base/utils/dialogmanager.h>
 
 using CreateTopWidgetCallback = std::function<QWidget *()>;
 using ShowTopWidgetCallback = std::function<bool(QWidget *, const QUrl &)>;
@@ -44,6 +46,9 @@ void Search::initialize()
     DirIteratorFactory::regClass<SearchDirIterator>(SearchHelper::scheme());
     WatcherFactory::regClass<SearchFileWatcher>(SearchHelper::scheme(),
                                                 WatcherFactory::RegOpts::kNoCache);
+
+    // must inited in main thread
+    TextIndexClient::instance()->checkService();
 
     bindEvents();
     bindWindows();
@@ -79,6 +84,8 @@ void Search::regSearchCrumbToTitleBar()
     QVariantMap property;
     property["Property_Key_KeepAddressBar"] = true;
     dpfSlotChannel->push("dfmplugin_titlebar", "slot_Custom_Register", SearchHelper::scheme(), property);
+    dpfHookSequence->follow("dfmplugin_titlebar", "hook_Crumb_RedirectUrl",
+                            SearchHelper::instance(), &SearchHelper::crumbRedirectUrl);
 
     QStringList &&filtes { "kFileSizeField", "kFileChangeTimeField", "kFileInterviewTimeField" };
     dpfSlotChannel->push("dfmplugin_detailspace", "slot_BasicFiledFilter_Add",
@@ -139,9 +146,13 @@ void Search::regSearchSettingConfig()
                 });
     }
 
-    SettingJsonGenerator::instance()->addCheckBoxConfig(SearchSettings::kFulltextSearch,
-                                                        tr("Full-Text search"),
-                                                        false);
+    QString textIndexKey { SearchSettings::kFulltextSearch };
+    DialogManager::instance()->registerSettingWidget("checkBoxWidthTextIndex", &SearchHelper::createCheckBoxWidthTextIndex);
+    SettingJsonGenerator::instance()->addConfig(SearchSettings::kFulltextSearch,
+                                                { { "key", textIndexKey.mid(textIndexKey.lastIndexOf(".") + 1) },
+                                                  { "text", tr("Full-Text search") },
+                                                  { "type", "checkBoxWidthTextIndex" },
+                                                  { "default", false } });
     SettingJsonGenerator::instance()->addCheckBoxConfig(SearchSettings::kDisplaySearchHistory,
                                                         tr("Display search history"),
                                                         true);
@@ -171,11 +182,11 @@ void Search::regSearchSettingConfig()
                                                      val);
             });
     SettingJsonGenerator::instance()->addConfig(SearchSettings::kClearSearchHistory,
-                   { { "key", "04_clear_search_history" },
-                     { "desc", tr("Clear dde-file-manager Search Records") },
-                     { "text", tr("Clean up") },
-                     { "type", "pushButton" },
-                     { "trigger", QVariant(Application::kClearSearchHistory) } });
+                                                { { "key", "04_clear_search_history" },
+                                                  { "desc", tr("Clear dde-file-manager Search Records") },
+                                                  { "text", tr("Clean up") },
+                                                  { "type", "pushButton" },
+                                                  { "trigger", QVariant(Application::kClearSearchHistory) } });
 }
 
 void Search::bindEvents()
@@ -187,7 +198,7 @@ void Search::bindEvents()
                             SearchHelper::instance(), &SearchHelper::customRoleDisplayName);
     dpfHookSequence->follow("dfmplugin_workspace", "hook_ShortCut_PasteFiles",
                             SearchHelper::instance(), &SearchHelper::blockPaste);
-    dpfHookSequence->follow("dfmplugin_workspace", "hook_Tab_Allow_Repeat_Url",
+    dpfHookSequence->follow("dfmplugin_workspace", "hook_Allow_Repeat_Url",
                             SearchHelper::instance(), &SearchHelper::allowRepeatUrl);
     dpfHookSequence->follow("dfmplugin_detailspace", "hook_Icon_Fetch",
                             SearchHelper::instance(), &SearchHelper::searchIconName);

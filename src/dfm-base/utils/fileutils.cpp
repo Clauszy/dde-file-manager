@@ -7,6 +7,7 @@
 #include <dfm-base/utils/windowutils.h>
 #include <dfm-base/utils/sysinfoutils.h>
 #include <dfm-base/utils/systempathutil.h>
+#include <dfm-base/utils/protocolutils.h>
 #include <dfm-base/dfm_global_defines.h>
 #include <dfm-base/utils/dialogmanager.h>
 #include <dfm-base/base/urlroute.h>
@@ -56,13 +57,14 @@
 #include <sys/stat.h>
 #include <linux/limits.h>
 
-#ifdef COMPILE_ON_V23
+#ifdef COMPILE_ON_V2X
 #    define APPEARANCE_SERVICE "org.deepin.dde.Appearance1"
 #    define APPEARANCE_PATH "/org/deepin/dde/Appearance1"
 #else
 #    define APPEARANCE_SERVICE "com.deepin.daemon.Appearance"
 #    define APPEARANCE_PATH "/com/deepin/daemon/Appearance"
 #endif
+using namespace GlobalDConfDefines::ConfigPath;
 
 namespace dfmbase {
 
@@ -157,43 +159,6 @@ int FileUtils::supportedMaxLength(const QString &fileSystem)
         { "xfs", 12 }   // https://github.com/edward6/reiser4progs/blob/master/include/reiser4/types.h fs_hint_t
     };
     return datas.value(fileSystem.toLower(), 11);
-}
-
-bool FileUtils::isGvfsFile(const QUrl &url)
-{
-    if (!url.isValid())
-        return false;
-
-    const QString &path = url.toLocalFile();
-    static const QString gvfsMatch { "(^/run/user/\\d+/gvfs/|^/root/.gvfs/|^/media/[\\s\\S]*/smbmounts)" };
-    // TODO(xust) /media/$USER/smbmounts might be changed in the future.
-    QRegularExpression re { gvfsMatch };
-    QRegularExpressionMatch match { re.match(path) };
-    return match.hasMatch();
-}
-
-bool FileUtils::isMtpFile(const QUrl &url)
-{
-    if (!url.isValid())
-        return false;
-
-    const QString &path = url.toLocalFile();
-    static const QString gvfsMatch { R"(^/run/user/\d+/gvfs/mtp:host|^/root/.gvfs/mtp:host)" };
-    QRegularExpression re { gvfsMatch };
-    QRegularExpressionMatch match { re.match(path) };
-    return match.hasMatch();
-}
-
-bool FileUtils::isGphotoFile(const QUrl &url)
-{
-    if (!url.isValid())
-        return false;
-
-    const QString &path = url.toLocalFile();
-    static const QString gvfsMatch { R"(^/run/user/\d+/gvfs/gphoto2:host|^/root/.gvfs/gphoto2:host)" };
-    QRegularExpression re { gvfsMatch };
-    QRegularExpressionMatch match { re.match(path) };
-    return match.hasMatch();
 }
 
 QString FileUtils::preprocessingFileName(QString name)
@@ -307,6 +272,14 @@ bool FileUtils::isDesktopFileInfo(const FileInfoPointer &info)
     return false;
 }
 
+void FileUtils::refreshIconCache()
+{
+    // https://bugreports.qt.io/browse/QTBUG-112257
+    QString currentTheme = QIcon::themeName();
+    QIcon::setThemeName(QString());
+    QIcon::setThemeName(currentTheme);
+}
+
 bool FileUtils::isTrashDesktopFile(const QUrl &url)
 {
     if (isDesktopFileSuffix(url)) {
@@ -356,36 +329,25 @@ bool FileUtils::isSameFile(const QUrl &url1, const QUrl &url2, const Global::Cre
     if (!info1 || !info2)
         return false;
 
-    struct stat statFromInfo;
-    struct stat statToInfo;
-
     const QString &path1 = info1->pathOf(PathInfoType::kAbsoluteFilePath);
     const QString &path2 = info2->pathOf(PathInfoType::kAbsoluteFilePath);
-    int fromStat = stat(path1.toLocal8Bit().data(), &statFromInfo);
-    int toStat = stat(path2.toLocal8Bit().data(), &statToInfo);
-    if (0 == fromStat && 0 == toStat) {
-        // 通过inode判断是否是同一个文件
-        if (statFromInfo.st_ino == statToInfo.st_ino
-            && statFromInfo.st_dev == statToInfo.st_dev) {   //! 需要判断设备号
-            return true;
-        }
-    }
-    return false;
+
+    return isSameFile(path1, path2);
 }
 
-bool FileUtils::isLocalDevice(const QUrl &url)
+bool FileUtils::isSameFile(const QString &path1, const QString &path2)
 {
-    //return !DFMIO::DFMUtils::fileIsRemovable(url) && !isGvfsFile(url);
-    if (isGvfsFile(url))
-        return false;
+    struct stat stat1;
+    struct stat stat2;
+    int ret1 = stat(path1.toLocal8Bit().data(), &stat1);
+    int ret2 = stat(path2.toLocal8Bit().data(), &stat2);
+    if (0 == ret1 && 0 == ret2) {
+        // 通过inode判断是否是同一个文件
+        return (stat1.st_ino == stat2.st_ino
+                && stat1.st_dev == stat2.st_dev);   //! 需要判断设备号
+    }
 
-    if (DeviceUtils::isExternalBlock(url))
-        return false;
-
-    if (DevProxyMng->isFileOfProtocolMounts(url.path()))
-        return false;
-
-    return true;
+    return false;
 }
 
 bool FileUtils::isCdRomDevice(const QUrl &url)
@@ -1008,16 +970,16 @@ bool FileUtils::containsCopyingFileUrl(const QUrl &url)
     return copyingUrl.contains(url);
 }
 
-// TODO: remot it!
+// TODO: remove it!
 void FileUtils::notifyFileChangeManual(DFMGLOBAL_NAMESPACE::FileNotifyType type, const QUrl &url)
 {
     if (!url.isValid())
         return;
 
     auto isRemoteMount = [=](const QUrl &url) -> bool {
-        if (DeviceUtils::isSamba(url))
+        if (ProtocolUtils::isSMBFile(url))
             return true;
-        if (DeviceUtils::isFtp(url))
+        if (ProtocolUtils::isFTPFile(url))
             return true;
 
         return false;
@@ -1328,7 +1290,7 @@ bool FileUtils::fileCanTrash(const QUrl &url)
     // 获取当前配置
     bool alltotrash = DConfigManager::instance()->value(kDefaultCfgPath, kFileAllTrash).toBool();
     if (!alltotrash)
-        return info ? info->extendAttributes(ExtInfoType::kFileLocalDevice).toBool() : isLocalDevice(url);
+        return info ? info->canAttributes(CanableInfoType::kCanTrash) : false;
     if (!url.isValid())
         return false;
 
@@ -1553,6 +1515,33 @@ bool Match::match(const QString &path, const QString &name)
     }
 
     return false;
+}
+
+QString FileUtils::findIconFromXdg(const QString &iconName)
+{
+    if (!QStandardPaths::findExecutable("qtxdg-iconfinder").isEmpty()) {
+        QProcess process;
+        process.start("qtxdg-iconfinder", QStringList() << iconName);
+        process.closeWriteChannel();
+        process.waitForFinished();
+
+        QString outputTxt = process.readAllStandardOutput();
+        QStringList list = outputTxt.split("\n");
+
+        if (list.size() > 3) {
+            // Remove unnecessary lines
+            list.removeFirst();
+            list.removeLast();
+            list.removeLast();
+            
+            return list.first().simplified();
+        }
+
+        return QString();
+    } else {
+        qCWarning(logDFMBase) << "qtxdg-iconfinder not found";
+        return QString();
+    }
 }
 
 }

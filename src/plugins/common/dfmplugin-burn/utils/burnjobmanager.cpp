@@ -164,7 +164,7 @@ void BurnJobManager::initBurnJobConnect(AbstractBurnJob *job)
     connect(job, &AbstractBurnJob::requestFailureDialog, this, &BurnJobManager::showOpticalJobFailureDialog);
     connect(job, &AbstractBurnJob::requestErrorMessageDialog, DialogManagerInstance, &DialogManager::showErrorDialog);
     connect(job, &AbstractBurnJob::requestCloseTab, this, [](const QUrl &url) {
-        dpfSlotChannel->push("dfmplugin_workspace", "slot_Tab_Close", url);
+        dpfSlotChannel->push("dfmplugin_titlebar", "slot_Tab_Close", url);
     });
     connect(job, &AbstractBurnJob::requestReloadDisc, this, [](const QString &devId) {
         DevMngIns->mountBlockDevAsync(devId, {}, [devId](bool, const DFMMOUNT::OperationErrorInfo &, const QString &) {
@@ -223,6 +223,7 @@ void BurnJobManager::showOpticalJobCompletionDialog(const QString &msg, const QS
     d.addButton(tr("OK", "button"), true, DDialog::ButtonRecommend);
     d.setDefaultButton(0);
     d.getButton(0)->setFocus();
+    d.moveToCenter();
     d.exec();
 }
 
@@ -277,6 +278,7 @@ void BurnJobManager::showOpticalJobFailureDialog(int type, const QString &err, c
     d.addButton(tr("Confirm", "button"), true, DDialog::ButtonRecommend);
     d.setDefaultButton(1);
     d.getButton(1)->setFocus();
+    d.moveToCenter();
     d.exec();
 }
 

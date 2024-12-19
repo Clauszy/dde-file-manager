@@ -4,13 +4,13 @@ project(dfmplugin-search)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-FILE(GLOB_RECURSE
-    SRC
+FILE(GLOB_RECURSE SRC_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*/*.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*/*.c"
+    "${CMAKE_SOURCE_DIR}/3rdparty/fsearch/*.c"
+    "${CMAKE_SOURCE_DIR}/3rdparty/fsearch/*.h"
+    "${CMAKE_SOURCE_DIR}/3rdparty/fulltext/*.cpp"
+    "${CMAKE_SOURCE_DIR}/3rdparty/fulltext/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.json"
 )
 
@@ -27,9 +27,15 @@ pkg_check_modules(Docparser REQUIRED IMPORTED_TARGET docparser)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 pkg_check_modules(PCRE REQUIRED libpcre)
 
+# use TextIndex interface
+qt5_add_dbus_interface(SRC_FILES
+    "${CMAKE_SOURCE_DIR}/assets/dbus/org.deepin.Filemanager.TextIndex.xml"
+    textindex_interface
+)
+
 add_library(${PROJECT_NAME}
     SHARED
-    ${SRC}
+    ${SRC_FILES}
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -38,7 +44,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         ${DtkWidget_INCLUDE_DIRS}
-        ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty
+        ${CMAKE_SOURCE_DIR}/3rdparty
         ${GLIB_INCLUDE_DIRS}
         ${PCRE_INCLUDE_DIRS}
 )
@@ -58,7 +64,7 @@ install(TARGETS
     ${PROJECT_NAME}
     LIBRARY
     DESTINATION
-    ${DFM_PLUGIN_FILEMANAGER_EDGE_DIR}
+    ${DFM_PLUGIN_FILEMANAGER_CORE_DIR}
 )
 
 # install dconfig files.

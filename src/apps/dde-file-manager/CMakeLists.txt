@@ -22,6 +22,8 @@ set(SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/private/commandparser_p.h
     ${CMAKE_CURRENT_SOURCE_DIR}/sessionloader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/sessionloader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/dragmonitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/dragmonitor.h
     )
 
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
@@ -35,12 +37,6 @@ target_include_directories(${PROJECT_NAME}
     ${CMAKE_CURRENT_BINARY_DIR}
     )
 
-if(OPT_ENABLE_QML)
-    set(DFM_QML_LIBRARIE DFM::gui)
-else()
-    set(DFM_QML_LIBRARIE "")
-endif()
-
 target_link_libraries(
     ${PROJECT_NAME}
     Qt5::Widgets
@@ -48,7 +44,6 @@ target_link_libraries(
     DFM::base
     DFM::framework
     Dtk${DTK_VERSION_MAJOR}::Widget
-    ${DFM_QML_LIBRARIE}
 )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
@@ -65,7 +60,8 @@ install(FILES pkexec/com.deepin.pkexec.dde-file-manager.policy DESTINATION share
 install(PROGRAMS pkexec/dde-file-manager-pkexec DESTINATION bin)
 
 # manual
-install(DIRECTORY assets/dde-file-manager DESTINATION share/deepin-manual/manual-assets/application)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets/manual/dde-file-manager
+    DESTINATION share/deepin-manual/manual-assets/application)
 
 # translation
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/translations DESTINATION share/${PROJECT_NAME} FILES_MATCHING PATTERN "*.qm")

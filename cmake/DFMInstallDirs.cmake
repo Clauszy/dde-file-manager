@@ -10,14 +10,24 @@ if(NOT DEFINED LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR ${CMAKE_INSTALL_FULL_LIBDIR})
 endif()
 
+# defines dde-file-manager lib dir
+if(NOT DEFINED DFM_LIB_DIR)
+    set(DFM_LIB_DIR ${LIB_INSTALL_DIR}/dde-file-manager)
+endif()
+
 # root plguins dir
 if(NOT DEFINED DFM_PLUGIN_DIR)
-    set(DFM_PLUGIN_DIR ${LIB_INSTALL_DIR}/dde-file-manager/plugins)
+    set(DFM_PLUGIN_DIR ${DFM_LIB_DIR}/plugins)
+endif()
+
+# build dir
+if(NOT DEFINED DFM_BUILD_DIR)
+    set(DFM_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/src)
 endif()
 
 # build plugins dir
 if(NOT DEFINED DFM_BUILD_PLUGIN_DIR)
-    set(DFM_BUILD_PLUGIN_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/plugins)
+    set(DFM_BUILD_PLUGIN_DIR ${DFM_BUILD_DIR}/plugins)
 endif()
 
 set(DFM_BUILD_PLUGIN_COMMON_DIR ${DFM_BUILD_PLUGIN_DIR}/common)
@@ -26,6 +36,7 @@ set(DFM_BUILD_PLUGIN_DESKTOP_DIR ${DFM_BUILD_PLUGIN_DIR}/desktop)
 set(DFM_BUILD_PLUGIN_FILEDIALOG_DIR ${DFM_BUILD_PLUGIN_DIR}/filedialog)
 set(DFM_BUILD_PLUGIN_FILEMANAGER_DIR ${DFM_BUILD_PLUGIN_DIR}/filemanager)
 set(DFM_BUILD_PLUGIN_SERVER_DIR ${DFM_BUILD_PLUGIN_DIR}/server)
+set(DFM_BUILD_PLUGIN_TOOLS_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/tools)
 
 # common-core plugins dir
 if(NOT DEFINED DFM_PLUGIN_COMMON_CORE_DIR)
@@ -69,19 +80,10 @@ endif()
 
 # tools
 if(NOT DEFINED DFM_TOOLS_DIR)
-    set(DFM_TOOLS_DIR ${LIB_INSTALL_DIR}/dde-file-manager/tools)
+    set(DFM_TOOLS_DIR ${DFM_LIB_DIR}/tools)
 endif()
 
 # dde-file-thumbnail-tool
 if(NOT DEFINED DFM_THUMBNAIL_TOOL)
     set(DFM_THUMBNAIL_TOOL ${LIB_INSTALL_DIR}/dde-file-manager/tools)
 endif()
-
-# qml module
-if(NOT DEFINED DFM_QML_MODULE)
-    set(DFM_QML_MODULE ${DFM_PLUGIN_DIR}/qml)
-endif()
-
-# qml import path for qt creator
-list(APPEND QML_DIRS ${DFM_BUILD_PLUGIN_DIR}/qml)
-set(QML_IMPORT_PATH ${QML_DIRS} CACHE STRING "Import local module" FORCE)

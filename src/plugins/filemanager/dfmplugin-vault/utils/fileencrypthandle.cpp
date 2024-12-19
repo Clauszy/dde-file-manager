@@ -30,6 +30,7 @@ inline constexpr int kArgumentsNum { 3 };
 
 DFMBASE_USE_NAMESPACE
 using namespace dfmplugin_vault;
+using namespace GlobalDConfDefines::ConfigPath;
 
 FileEncryptHandle::FileEncryptHandle(QObject *parent)
     : QObject(parent), d(new FileEncryptHandlerPrivate(this))
@@ -199,7 +200,13 @@ VaultState FileEncryptHandle::state(const QString &encryptBaseDir) const
             lockBaseDir += "/cryfs.config";
 
         if (QFile::exists(lockBaseDir)) {
-            QUrl mountDirUrl = QUrl::fromLocalFile(PathManager::vaultUnlockPath());
+
+            QString realPath = QFileInfo(PathManager::vaultUnlockPath()).canonicalFilePath();
+            if (realPath.isEmpty())
+                return kEncrypted;
+
+            QUrl mountDirUrl = QUrl::fromLocalFile(realPath);
+
             const QString &fsType = DFMIO::DFMUtils::fsTypeFromUrl(mountDirUrl);
             if (fsType == "fuse.cryfs")
                 d->curState = kUnlocked;
@@ -305,7 +312,8 @@ int FileEncryptHandlerPrivate::runVaultProcess(QString lockBaseDir, QString unlo
     }
     arguments << lockBaseDir << unlockFileDir;
 
-    process->setEnvironment({ "CRYFS_FRONTEND=noninteractive" });
+    setEnviroment(QPair<QString, QString>("CRYFS_FRONTEND", "noninteractive"));
+
     process->start(cryfsBinary, arguments);
     process->waitForStarted();
     process->write(DSecureString.toUtf8());
@@ -344,7 +352,8 @@ int FileEncryptHandlerPrivate::runVaultProcess(QString lockBaseDir, QString unlo
     }
     arguments << QString("--cipher") << encryptTypeMap.value(type) << QString("--blocksize") << QString::number(blockSize) << lockBaseDir << unlockFileDir;
 
-    process->setEnvironment({ "CRYFS_FRONTEND=noninteractive" });
+    setEnviroment(QPair<QString, QString>("CRYFS_FRONTEND", "noninteractive"));
+
     process->start(cryfsBinary, arguments);
     process->waitForStarted();
     process->write(DSecureString.toUtf8());
@@ -556,4 +565,15 @@ EncryptType FileEncryptHandlerPrivate::encryptAlgoTypeOfGroupPolicy()
     }
 
     return type;
+}
+
+void FileEncryptHandlerPrivate::setEnviroment(const QPair<QString, QString> &value)
+{
+    // Just append enviroment value, not replace.
+    if (!process)
+        return;
+
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert(value.first, value.second);
+    process->setProcessEnvironment(env);
 }

@@ -3,12 +3,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "searchhelper.h"
+
+#include "checkboxwidthtextindex.h"
 #include "topwidget/advancesearchbar.h"
 
 #include <dfm-base/interfaces/fileinfo.h>
 #include <dfm-base/base/schemefactory.h>
+#include <dfm-base/base/urlroute.h>
+#include <dfm-base/utils/universalutils.h>
+#include <dfm-base/utils/fileutils.h>
 
 #include <dfm-framework/dpf.h>
+
+#include <DSettingsOption>
 
 #include <QUrlQuery>
 
@@ -321,6 +328,15 @@ bool SearchHelper::allowRepeatUrl(const QUrl &cur, const QUrl &pre)
     return false;
 }
 
+bool SearchHelper::crumbRedirectUrl(QUrl *redirectUrl)
+{
+    if (redirectUrl->scheme() == scheme()) {
+        *redirectUrl = searchTargetUrl(*redirectUrl);
+        return true;
+    }
+    return false;
+}
+
 QDBusInterface &SearchHelper::anythingInterface()
 {
     static QDBusInterface interface("com.deepin.anything",
@@ -329,6 +345,26 @@ QDBusInterface &SearchHelper::anythingInterface()
                                     QDBusConnection::systemBus());
 
     return interface;
+}
+
+QWidget *SearchHelper::createCheckBoxWidthTextIndex(QObject *opt)
+{
+    auto option = qobject_cast<Dtk::Core::DSettingsOption *>(opt);
+    const QString &text = option->data("text").toString();
+
+    CheckBoxWidthTextIndex *cb = new CheckBoxWidthTextIndex;
+    cb->setDisplayText(qApp->translate("QObject", text.toStdString().c_str()));
+    cb->setChecked(option->value().toBool());
+    cb->initStatusBar();
+
+    QObject::connect(cb, &CheckBoxWidthTextIndex::stateChanged, option, [=](int state) {
+        if (state == 0)
+            option->setValue(false);
+        else if (state == 2)
+            option->setValue(true);
+    });
+
+    return cb;
 }
 
 SearchHelper::SearchHelper(QObject *parent)

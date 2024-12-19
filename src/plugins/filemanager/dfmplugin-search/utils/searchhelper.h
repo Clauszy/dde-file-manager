@@ -62,7 +62,11 @@ public:
     bool isHiddenFile(const QString &fileName, QHash<QString, QSet<QString>> &filters, const QString &searchPath);
     bool allowRepeatUrl(const QUrl &cur, const QUrl &pre);
 
+    bool crumbRedirectUrl(QUrl *redirectUrl);
+
     static QDBusInterface &anythingInterface();
+    [[nodiscard]] static QWidget *createCheckBoxWidthTextIndex(QObject *opt);
+
 private:
     explicit SearchHelper(QObject *parent = nullptr);
     ~SearchHelper() override;

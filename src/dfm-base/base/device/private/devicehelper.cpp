@@ -15,6 +15,7 @@
 #include <dfm-base/utils/universalutils.h>
 #include <dfm-base/utils/dialogmanager.h>
 #include <dfm-base/utils/networkutils.h>
+#include <dfm-base/utils/protocolutils.h>
 
 #include <DDesktopServices>
 #include <dtkwidget_global.h>
@@ -24,6 +25,8 @@
 #include <QStandardPaths>
 #include <QProcess>
 #include <QTextStream>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <dfm-mount/dmount.h>
 #include <dfm-burn/dburn_global.h>
@@ -120,6 +123,20 @@ QVariantMap DeviceHelper::loadBlockInfo(const BlockDevAutoPtr &dev)
     datas[kConnectionBus] = getNullStrIfNotValid(Property::kDriveConnectionBus);
     datas[kDriveModel] = getNullStrIfNotValid(Property::kDriveModel);
     datas[kPreferredDevice] = getNullStrIfNotValid(Property::kBlockPreferredDevice);
+
+    auto config = dev->getProperty(Property::kBlockConfiguration).toMap();
+    if (!config.isEmpty()) {
+        QJsonObject jsonRootObj;
+        QMapIterator<QString, QVariant> iter(config);
+        while (iter.hasNext()) {
+            iter.next();
+            auto key = iter.key();
+            QVariantMap value = iter.value().toMap();
+            jsonRootObj.insert(key, QJsonObject::fromVariantMap(value));
+        }
+        QJsonDocument doc(jsonRootObj);
+        datas[kConfiguration] = QString(doc.toJson(QJsonDocument::Compact));
+    }
 
     datas[kUDisks2Size] = dev->sizeTotal();
     auto mpt = dev->mountPoint();
@@ -359,7 +376,7 @@ void DeviceHelper::readOpticalInfo(QVariantMap &datas)
 bool DeviceHelper::checkNetworkConnection(const QString &id)
 {
     QUrl url(id);
-    if (!(DeviceUtils::isSamba(url) || DeviceUtils::isSftp(url) || DeviceUtils::isFtp(url)))
+    if (!(ProtocolUtils::isSMBFile(url) || ProtocolUtils::isSFTPFile(url) || ProtocolUtils::isFTPFile(url)))
         return true;
 
     QString host, port;
@@ -398,7 +415,7 @@ QVariantMap DeviceHelper::makeFakeProtocolInfo(const QString &id)
     fakeInfo[DeviceProperty::kDeviceIcon] = "folder-remote";
     fakeInfo["fake"] = true;
 
-    if (DeviceUtils::isSamba(QUrl(path))) {
+    if (ProtocolUtils::isSMBFile(QUrl(path))) {
         QString host, share;
         if (DeviceUtils::parseSmbInfo(path, host, share))
             fakeInfo[DeviceProperty::kDisplayName] = QObject::tr("%1 on %2").arg(share).arg(host);

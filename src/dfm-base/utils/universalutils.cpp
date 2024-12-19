@@ -24,7 +24,7 @@
 #include <QRegularExpression>
 #include <DUtil>
 
-#ifdef COMPILE_ON_V23
+#ifdef COMPILE_ON_V2X
 #    define APP_MANAGER_SERVICE "org.desktopspec.ApplicationManager1"
 #    define APP_MANAGER_PATH_PREFIX "/org/desktopspec/ApplicationManager1"
 #    define APP_INTERFACE "org.desktopspec.ApplicationManager1.Application"
@@ -32,10 +32,6 @@
 #    define SYSTEM_SYSTEMINFO_SERVICE "org.deepin.dde.SystemInfo1"
 #    define SYSTEM_SYSTEMINFO_PATH "/org/deepin/dde/SystemInfo1"
 #    define SYSTEM_SYSTEMINFO_INTERFACE "org.deepin.dde.SystemInfo1"
-
-#    define DEAMON_SYSTEMINFO_SERVICE "org.deepin.daemon.SystemInfo1"
-#    define DEAMON_SYSTEMINFO_PATH "/org/deepin/daemon/SystemInfo1"
-#    define DEAMON_SYSTEMINFO_INTERFACE "org.deepin.daemon.SystemInfo1"
 
 #    define DEAMON_DOCK_SERVICE "org.deepin.dde.daemon.Dock1"
 #    define DEAMON_DOCK_PATH "/org/deepin/dde/daemon/Dock1"
@@ -209,9 +205,9 @@ qint64 UniversalUtils::computerMemory()
 
 void UniversalUtils::computerInformation(QString &cpuinfo, QString &systemType, QString &edition, QString &version)
 {
-    QDBusInterface systemInfo(DEAMON_SYSTEMINFO_SERVICE,
-                              DEAMON_SYSTEMINFO_PATH,
-                              DEAMON_SYSTEMINFO_INTERFACE,
+    QDBusInterface systemInfo(SYSTEM_SYSTEMINFO_SERVICE,
+                              SYSTEM_SYSTEMINFO_PATH,
+                              SYSTEM_SYSTEMINFO_INTERFACE,
                               QDBusConnection::sessionBus());
 
     if (systemInfo.isValid()) {
@@ -271,7 +267,7 @@ bool UniversalUtils::checkLaunchAppInterface()
             initStatus = false;
             return;
         }
-#ifndef COMPILE_ON_V23
+#ifndef COMPILE_ON_V2X
         QDBusInterface introspect(APP_MANAGER_SERVICE,
                                   APP_MANAGER_PATH,
                                   "org.freedesktop.DBus.Introspectable",
@@ -302,16 +298,9 @@ bool UniversalUtils::checkLaunchAppInterface()
 
 bool UniversalUtils::launchAppByDBus(const QString &desktopFile, const QStringList &filePaths)
 {
-#ifdef COMPILE_ON_V23
-    const auto &file = QFileInfo { desktopFile };
-    constexpr auto kDesktopSuffix { u8"desktop" };
-
-    if (file.suffix() != kDesktopSuffix) {
-        qCDebug(logDFMBase) << "invalid desktop file:" << desktopFile << file;
-        return false;
-    }
-
-    const auto &DBusAppId = DUtil::escapeToObjectPath(file.completeBaseName());
+#ifdef COMPILE_ON_V2X
+    const auto &AppId = DUtil::getAppIdFromAbsolutePath(desktopFile);
+    const auto &DBusAppId = DUtil::escapeToObjectPath(AppId);
     const auto &currentAppPath = QString { APP_MANAGER_PATH_PREFIX } + "/" + DBusAppId;
     qCDebug(logDFMBase) << "app object path:" << currentAppPath;
     QDBusInterface appManager(APP_MANAGER_SERVICE,
@@ -338,7 +327,7 @@ bool UniversalUtils::launchAppByDBus(const QString &desktopFile, const QStringLi
 
 bool UniversalUtils::runCommand(const QString &cmd, const QStringList &args, const QString &wd)
 {
-#ifdef COMPILE_ON_V23
+#ifdef COMPILE_ON_V2X
     qCDebug(logDFMBase) << "new AM wouldn't provide any method to run Command, so launch cmd by qt:" << cmd << args;
     return QProcess::startDetached(cmd, args, wd);
 #else

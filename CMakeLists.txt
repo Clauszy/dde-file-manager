@@ -18,33 +18,22 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-all -Werror=return-typ
 option(OPT_DISABLE_QDEBUG "Disable Debug Macro" OFF)
 option(OPT_ENABLE_BUILD_DOCS "Build develop documents" OFF)
 option(OPT_ENABLE_BUILD_UT "Buld unit tests" ON)
-option(OPT_ENABLE_QML "Use QML" OFF)
 option(OPT_ENABLE_QT6 "Use Qt6" ON)
-
 
 # if no debug, can't out in code define key '__FUNCTION__' and so on
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 # TODO: control it by CI. (Automation Testing)
 add_definitions(-DENABLE_TESTING)
 
-# QML or QtWidget
-if(OPT_ENABLE_QML)
-    message(STATUS "Use QML")
-    add_definitions(-DDFM_UI_TYPE_QML)
-else()
-    message(STATUS "Use QtWidget")
-    add_definitions(-DDFM_UI_TYPE_QWIDGET)
-endif()
-
 # Qt5 or Qt6
 set(DFM_BUILD_WITH_QT6 FALSE)
-if(OPT_ENABLE_QT6 OR OPT_ENABLE_QML)
+if(OPT_ENABLE_QT6)
     find_package(Qt6 QUIET)
     if (Qt6_FOUND)
         message(STATUS "Found Qt6: ${Qt6_VERSION}")
         set(DFM_BUILD_WITH_QT6 TRUE)
-        set(COMPLIE_ON_V23 TRUE)
-        add_definitions(-DCOMPILE_ON_V23)    # TODO: remove it
+        set(COMPILE_ON_V2X TRUE)
+        add_definitions(-DCOMPILE_ON_V2X)    # TODO: remove it
         message("COMPILE ON v2X")
     endif()
 endif()
@@ -53,14 +42,14 @@ if(NOT DFM_BUILD_WITH_QT6)
     message(WARNING "Qt6 not found, Use Qt5.")
     #Indentify the version
     find_package(DtkCMake REQUIRED)
-    if(${DEEPIN_OS_VERSION} MATCHES "^(23|25)$")
-        add_definitions(-DCOMPILE_ON_V23)
-        set(COMPLIE_ON_V23 TRUE)
-        message("COMPILE ON v2X")
-    else()
+    if(${DEEPIN_OS_VERSION} MATCHES "^20$")
         add_definitions(-DCOMPILE_ON_V20)
-        set(COMPLIE_ON_V20 TRUE)
+        set(COMPILE_ON_V20 TRUE)
         message("COMPILE ON v20")
+    else()
+        add_definitions(-DCOMPILE_ON_V2X)
+        set(COMPILE_ON_V2X TRUE)
+        message("COMPILE ON v2X")
     endif()
 endif()
 
@@ -75,9 +64,6 @@ endif()
 # CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-if (OPT_ENABLE_QML)
-    include(install_plugin_quick_module)
-endif()
 include(install_dconfig)
 include(install_dbus_service)
 include(GNUInstallDirs)
@@ -110,10 +96,6 @@ add_subdirectory(src/plugins)
 add_subdirectory(src/external)
 add_subdirectory(src/tools)
 add_subdirectory(src/services)
-if(OPT_ENABLE_QML)
-    add_subdirectory(src/dfm-gui)
-    add_subdirectory(src/dfm-declarative)
-endif()
 
 # docs
 if(OPT_ENABLE_BUILD_DOCS)
@@ -124,7 +106,7 @@ if(OPT_ENABLE_BUILD_DOCS)
 endif()
 
 # test
-if(OPT_ENABLE_BUILD_UT AND NOT OPT_ENABLE_QML AND NOT OPT_ENABLE_QT6)
+if(OPT_ENABLE_BUILD_UT AND NOT OPT_ENABLE_QT6)
     message(STATUS "Enable testing: ${BUILD_TESTING}")
     if(BUILD_TESTING)
         enable_testing()

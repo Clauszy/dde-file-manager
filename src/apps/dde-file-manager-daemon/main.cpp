@@ -25,6 +25,8 @@ static constexpr char kPluginCore[] { "daemonplugin-core" };
 static constexpr char kLibCore[] { "libdaemonplugin-core.so" };
 
 DFMBASE_USE_NAMESPACE
+using namespace GlobalDConfDefines::ConfigPath;
+using namespace GlobalDConfDefines::BaseConfig;
 
 #ifdef DFM_ORGANIZATION_NAME
 #    define ORGANIZATION_NAME DFM_ORGANIZATION_NAME
@@ -60,7 +62,7 @@ static bool pluginsLoad()
                 << QString(DFM_PLUGIN_DAEMON_EDGE_DIR);
 #endif
     qCInfo(logAppDaemon) << "Using plugins dir:" << pluginsDirs;
-    QStringList blackNames { DConfigManager::instance()->value(kPluginsDConfName, "server.blackList").toStringList() };
+    QStringList blackNames { DConfigManager::instance()->value(kPluginsDConfName, "daemon.blackList").toStringList() };
     DPF_NAMESPACE::LifeCycle::initialize({ kDaemonInterface }, pluginsDirs, blackNames);
 
     qCInfo(logAppDaemon) << "Depend library paths:" << QCoreApplication::libraryPaths();

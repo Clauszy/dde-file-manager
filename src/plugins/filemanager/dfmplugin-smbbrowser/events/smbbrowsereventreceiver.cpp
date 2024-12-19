@@ -72,7 +72,8 @@ bool SmbBrowserEventReceiver::hookSetTabName(const QUrl &url, QString *tabName)
         return true;
     }
 
-    if (url.scheme() == "smb" && url.path().contains(QRegularExpression(R"([^/]*)"))) {
+    static QRegularExpression regx(R"([^/]*)");
+    if (url.scheme() == "smb" && url.path().contains(regx)) {
         auto path = url.toString();
         while (path.endsWith("/"))
             path.chop(1);
@@ -93,12 +94,23 @@ bool SmbBrowserEventReceiver::hookTitleBarAddrHandle(QUrl *url)
     return false;
 }
 
+bool SmbBrowserEventReceiver::hookAllowRepeatUrl(const QUrl &cur, const QUrl &pre)
+{
+    QStringList allowReEnterScehmes { Global::Scheme::kSmb,
+                                      Global::Scheme::kSFtp,
+                                      Global::Scheme::kFtp,
+                                      Global::Scheme::kDav,
+                                      Global::Scheme::kDavs,
+                                      Global::Scheme::kNfs };
+    return allowReEnterScehmes.contains(cur.scheme()) && allowReEnterScehmes.contains(pre.scheme());
+}
+
 bool SmbBrowserEventReceiver::getOriginalUri(const QUrl &in, QUrl *out)
 {
     QString path = in.path();
 
     // is cifs
-    static const QRegularExpression kCifsPrefix { R"(^/media/[^/]*/smbmounts/smb-share:[^/]*)" };
+    static const QRegularExpression kCifsPrefix { R"(^/(?:run/)?media/[^/]*/smbmounts/smb-share:[^/]*)" };
     if (path.contains(kCifsPrefix)) {
         QString host, share, port;
         if (!DeviceUtils::parseSmbInfo(path, host, share, &port))
@@ -118,7 +130,7 @@ bool SmbBrowserEventReceiver::getOriginalUri(const QUrl &in, QUrl *out)
 
     // is gvfs: since mtp/gphoto... scheme are not supported path lookup, only handle ftp/sftp/smb
     // use GIO to obtain the original URI
-    if (path.contains(QRegularExpression(R"(((^/run/user/[0-9]*/gvfs)|(^/root/.gvfs))/(ftp|sftp|smb))"))) {
+    if (path.contains(QRegularExpression(R"(((^/run/user/[0-9]*/gvfs)|(^/root/.gvfs))/(ftp|sftp|smb|dav|davs|nfs))"))) {
         SyncFileInfo f(in);
         QUrl u = f.urlOf(dfmbase::FileInfo::FileUrlInfoType::kOriginalUrl);
         if (u.isValid() && out) {

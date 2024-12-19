@@ -81,15 +81,15 @@ void IteratorSearcher::doSearch()
         if (!iterator)
             continue;
 
-        iterator->setQueryAttributes("standard::name,standard::type,standard::size,\
+        iterator->setProperty("QueryAttributes","standard::name,standard::type,standard::size,\
                                      standard::size,standard::is-symlink,standard::symlink-target,access::*,time::*");
 
         // 仅在过滤目录下进行搜索时，过滤目录下的内容才能被检索
         if (dfmbase::FileUtils::isLocalFile(url)) {
-            QRegExp reg(kFilterFolders);
+            QRegularExpression reg(kFilterFolders);
             const auto &searchRootPath = searchUrl.toLocalFile();
             const auto &filePath = url.toLocalFile();
-            if (!reg.exactMatch(searchRootPath) && reg.exactMatch(filePath))
+            if (!reg.match(searchRootPath).hasMatch() && reg.match(filePath).hasMatch())
                 continue;
         }
 

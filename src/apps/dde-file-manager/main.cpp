@@ -5,6 +5,7 @@
 #include "config.h"   //cmake
 #include "singleapplication.h"
 #include "commandparser.h"
+#include "dragmonitor.h"
 
 #include "tools/upgrade/builtininterface.h"
 
@@ -26,18 +27,14 @@
 #include <signal.h>
 #include <malloc.h>
 
-#ifdef DFM_UI_TYPE_QML
-#    include <dfm-gui/sharedqmlengine.h>
-#    include <dfm-gui/windowmanager.h>
-#    include <QQmlEngine>
-#endif
-
 Q_LOGGING_CATEGORY(logAppFileManager, "org.deepin.dde.filemanager.filemanager")
 
 DGUI_USE_NAMESPACE
 DWIDGET_USE_NAMESPACE
 DCORE_USE_NAMESPACE
 DFMBASE_USE_NAMESPACE
+using namespace GlobalDConfDefines::ConfigPath;
+using namespace GlobalDConfDefines::BaseConfig;
 
 #ifdef DFM_ORGANIZATION_NAME
 #    define ORGANIZATION_NAME DFM_ORGANIZATION_NAME
@@ -132,27 +129,6 @@ static QStringList buildBlackNames()
     qCDebug(logAppFileManager) << "build all blacknames:" << blackNames;
     return blackNames;
 }
-
-#ifdef DFM_UI_TYPE_QML
-static bool initQmlEngine()
-{
-    QSharedPointer<QQmlEngine> globalEngine = dfmgui::WindowManager::instance()->engine();
-    if (!globalEngine) {
-        return false;
-    }
-
-#    ifdef QT_DEBUG
-    const QString &pluginsDir { DFM_BUILD_PLUGIN_DIR };
-    globalEngine->addImportPath(pluginsDir + "/qml");
-#    else
-    globalEngine->addImportPath(DFM_QML_MODULE);
-#    endif
-
-    dfmgui::WindowManager::instance()->initialize();
-    return true;
-}
-
-#endif
 
 static bool pluginsLoad()
 {
@@ -358,12 +334,6 @@ int main(int argc, char *argv[])
         // check upgrade
         checkUpgrade(&a);
 
-#ifdef DFM_UI_TYPE_QML
-        if (!initQmlEngine()) {
-            qCCritical(logAppFileManager) << "init QQmlEngine failed!";
-            abort();
-        }
-#endif
         if (!pluginsLoad()) {
             qCCritical(logAppFileManager) << "Load pugin failed!";
             abort();
@@ -376,8 +346,15 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // NOTE: temp code!!!!!!!!!!!
+    QScopedPointer<dfm_drag::DragMoniter> mo(new dfm_drag::DragMoniter);
+    if (!SysInfoUtils::isOpenAsAdmin())
+        mo->registerDBus();
+
     qCWarning(logAppFileManager) << " --- app start --- pid = " << a.applicationPid();
     int ret { a.exec() };
+
+    mo->unRegisterDBus();
     DPF_NAMESPACE::LifeCycle::shutdownPlugins();
 
     bool enableHeadless { DConfigManager::instance()->value(kDefaultCfgPath, "dfm.headless", false).toBool() };

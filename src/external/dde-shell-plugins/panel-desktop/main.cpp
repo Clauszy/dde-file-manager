@@ -4,13 +4,14 @@
 #include "desktopdbusinterface.h"
 
 #include "config.h"   //cmake
-// TODO: #Qt6 upgrade
+#include "tools/upgrade/builtininterface.h"
 
 #include <dfm-base/utils/sysinfoutils.h>
 #include <dfm-base/base/configs/dconfig/dconfigmanager.h>
 #include <dfm-base/base/application/application.h>
 #include <dfm-base/base/application/settings.h>
 #include <dfm-base/dfm_global_defines.h>
+#include <dfm-base/utils/windowutils.h>
 
 #include <dfm-framework/dpf.h>
 
@@ -31,11 +32,7 @@
 #include <QProcess>
 #include <QDateTime>
 #include <QTimer>
-#include <QElapsedTimer>
-#include <QDBusConnectionInterface>
 
-#include <iostream>
-#include <algorithm>
 #include <unistd.h>
 
 Q_LOGGING_CATEGORY(logAppDesktop, "org.deepin.dde.filemanager.desktop")
@@ -46,6 +43,8 @@ DCORE_USE_NAMESPACE
 DWIDGET_USE_NAMESPACE
 DFMBASE_USE_NAMESPACE
 using namespace dde_desktop;
+using namespace GlobalDConfDefines::ConfigPath;
+using namespace GlobalDConfDefines::BaseConfig;
 
 /// @brief PLUGIN_INTERFACE 默认插件iid
 static const char *const kDesktopPluginInterface = "org.deepin.plugin.desktop.qt6";
@@ -89,8 +88,8 @@ static bool pluginsLoad()
                                                     "dfmplugin-filepreview" };
 
     QStringList blackNames { DConfigManager::instance()->value(kPluginsDConfName, "desktop.blackList").toStringList() };
-#ifdef COMPILE_ON_V23
-    if (qEnvironmentVariable("DDE_CURRENT_COMPOSITOR") == "TreeLand") {
+#ifdef COMPILE_ON_V2X
+    if (DFMBASE_NAMESPACE::WindowUtils::isWayLand()) {
         qCInfo(logAppDesktop) << "disable background by TreeLand";
         if (!blackNames.contains("ddplugin-background")) {
             blackNames.append("ddplugin-background");
@@ -139,27 +138,10 @@ static void registerDDESession()
     }
 }
 
-static void waitingForKwin()
-{
-    qCWarning(logAppDesktop) << "start waiting kwin ";
-    QElapsedTimer timer;
-    timer.start();
-    int maxTime = 2000;
-    QDBusConnection sessionBus = QDBusConnection::sessionBus();
-    while (maxTime > 0) {
-        if (sessionBus.interface()->isServiceRegistered("org.kde.KWin"))
-            break;
-        QThread::msleep(50);
-        maxTime -= 50;
-    }
-    qint64 elapsed = timer.nsecsElapsed() / 1000000;
-    qCWarning(logAppDesktop) << "waiting for kwin ready cost" << elapsed << "ms";
-}
-
 static bool isDesktopEnable()
 {
     bool enable = !(dfmbase::DConfigManager::instance()->value(
-                                                               dfmbase::kDefaultCfgPath,
+                                                               kDefaultCfgPath,
                                                                "dd.disabled",
                                                                false)
                             .toBool());
@@ -180,6 +162,36 @@ static QStringList translationDir()
     return translateDirs;
 }
 
+static void checkUpgrade()
+{
+    if (!dfm_upgrade::isNeedUpgrade())
+        return;
+
+    qCInfo(logAppDesktop) << "try to upgrade in desktop";
+    QMap<QString, QString> args;
+    args.insert("version", qApp->applicationVersion());
+    args.insert(dfm_upgrade::kArgDesktop, "dde-shell");
+
+    QString lib;
+    GetUpgradeLibraryPath(lib);
+
+    int ret = dfm_upgrade::tryUpgrade(lib, args);
+    if (ret < 0) {
+        qCWarning(logAppDesktop) << "something error, exit current process." << qApp->applicationPid();
+        _Exit(-1);
+    } else if (ret == 0) {
+        auto arguments = qApp->arguments();
+        // remove first
+        if (!arguments.isEmpty())
+            arguments.pop_front();
+
+        QDBusConnection::sessionBus().unregisterService(kDesktopServiceName);
+        qCInfo(logAppDesktop) << "restart self " << qApp->applicationFilePath() << arguments;
+        QProcess::startDetached(qApp->applicationFilePath(), arguments);
+        _Exit(-1);
+    }
+}
+
 static bool main()
 {
     QString mainTime = QDateTime::currentDateTime().toString();
@@ -187,6 +199,8 @@ static bool main()
                           << "argments" << qApp->arguments() << mainTime;
 
     if (isDesktopEnable()) {
+        checkUpgrade();
+
         if (!pluginsLoad()) {
             qCCritical(logAppDesktop) << "Load pugin failed!";
             return false;
@@ -203,9 +217,6 @@ static bool main()
 
     // Notify dde-desktop start up
     registerDDESession();
-
-    // bug 236971 need to wait for kwin
-    waitingForKwin();
 
     return true;
 }
@@ -232,6 +243,8 @@ public:
         DGuiApplicationHelper::loadTranslator(QStringLiteral("dde-file-manager"),
                                               desktop::translationDir(),
                                               { QLocale::system() });
+        if (qApp)
+            qApp->loadTranslator();
 
         // DBus
         {

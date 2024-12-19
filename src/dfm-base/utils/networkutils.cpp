@@ -81,6 +81,11 @@ void NetworkUtils::doAfterCheckNet(const QString &host, const QStringList &ports
         watcher->deleteLater();
     });
     watcher->setFuture(QtConcurrent::run([host, ports, msecs]() {
+        if (ports.isEmpty()) {
+            qCInfo(logDFMBase) << "port not specified, skip network check. " << host;
+            return true; // skip check if ports are empty.
+        }
+
         for (const auto &port : ports) {
             qApp->processEvents();
             if (NetworkUtils::instance()->checkNetConnection(host, port, msecs))
@@ -94,7 +99,7 @@ bool NetworkUtils::parseIp(const QString &mpt, QString &ip, QString &port)
 {
     QString s(mpt);
     static QRegularExpression gvfsPref { "(^/run/user/\\d+/gvfs/|^/root/\\.gvfs/)" };
-    static QRegularExpression cifsMptPref { "^/media/[\\s\\S]*/smbmounts/" };   // TODO(xust) smb mount point may be changed.
+    static QRegularExpression cifsMptPref { "^/(?:run/)?media/[\\s\\S]*/smbmounts/" };
 
     if (s.contains(gvfsPref)) {
         s.remove(gvfsPref);
